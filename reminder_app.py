@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import os
+import datetime
+
 
 # ---------- Title ----------
 st.title("🔔 Smart Reminder App")
@@ -28,7 +30,7 @@ st.subheader("➕ Add a New Reminder")
 
 task = st.text_input("Reminder Title / Description")
 date = st.date_input("Date")
-time_input = st.time_input("Time (Set hour & minute as you wish)")
+time_input = st.time_input("Time (Set exact hour & minute)", value=datetime.time(12, 0), step=datetime.timedelta(minutes=1))
 
 if st.button("Add Reminder"):
     if task.strip() == "":
@@ -78,3 +80,4 @@ else:
     st.caption("Add a few reminders to get started!")
 
 st.caption("💾 All reminders are auto-saved to reminders.csv in your working directory.")
+

@@ -1,18 +1,15 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import os
-import datetime
-
 
 # ---------- Title ----------
 st.title("🔔 Smart Reminder App")
-st.write("Set your own date and exact time for any event — no restrictions!")
+st.write("Set any date and exact time for your reminders — precise to the minute!")
 
 # ---------- Load / Create CSV ----------
 csv_file = "reminders.csv"
 
-# Create or validate CSV file
 if not os.path.exists(csv_file):
     reminders = pd.DataFrame(columns=["Task", "Date", "Time"])
     reminders.to_csv(csv_file, index=False)
@@ -30,7 +27,13 @@ st.subheader("➕ Add a New Reminder")
 
 task = st.text_input("Reminder Title / Description")
 date = st.date_input("Date")
-time_input = st.time_input("Time (Set exact hour & minute)", value=datetime.time(12, 0), step=datetime.timedelta(minutes=1))
+
+# Allow minute-level control for time
+time_input = st.time_input(
+    "Time (Set exact hour & minute)",
+    value=time(12, 0),
+    step=timedelta(minutes=1)
+)
 
 if st.button("Add Reminder"):
     if task.strip() == "":
@@ -52,7 +55,7 @@ else:
 st.subheader("⏰ Reminder Status")
 
 if not reminders.empty:
-    # Combine date and time into datetime
+    # Combine date and time safely
     reminders["Datetime"] = pd.to_datetime(
         reminders["Date"].astype(str) + " " + reminders["Time"].astype(str),
         errors="coerce"
@@ -80,4 +83,3 @@ else:
     st.caption("Add a few reminders to get started!")
 
 st.caption("💾 All reminders are auto-saved to reminders.csv in your working directory.")
-

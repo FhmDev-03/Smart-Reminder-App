@@ -1,85 +1,59 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta, time
-import os
+from datetime import datetime, timedelta
+import pytz
 
-# ---------- Title ----------
-st.title("🔔 Smart Reminder App")
-st.write("Set any date and exact time for your reminders — precise to the minute!")
+# ---------- Initialize App ----------
+st.set_page_config(page_title="🕰️ Smart Reminder App", layout="centered")
 
-# ---------- Load / Create CSV ----------
-csv_file = "reminders.csv"
+st.title("🕰️ Smart Reminder App")
+st.write("Set reminders, track tasks, and get notified in your local time zone!")
 
-if not os.path.exists(csv_file):
+# ---------- File Persistence ----------
+FILE_PATH = "reminders.csv"
+
+try:
+    reminders = pd.read_csv(FILE_PATH)
+except FileNotFoundError:
     reminders = pd.DataFrame(columns=["Task", "Date", "Time"])
-    reminders.to_csv(csv_file, index=False)
-else:
-    reminders = pd.read_csv(csv_file)
 
-# Ensure correct columns
-expected_cols = ["Task", "Date", "Time"]
-if list(reminders.columns) != expected_cols:
-    reminders = pd.DataFrame(columns=expected_cols)
-    reminders.to_csv(csv_file, index=False)
-
-# ---------- Add new reminder ----------
+# ---------- Add New Reminder ----------
 st.subheader("➕ Add a New Reminder")
 
-task = st.text_input("Reminder Title / Description")
+task = st.text_input("Task")
 date = st.date_input("Date")
-
-# Allow minute-level control for time
-time_input = st.time_input(
-    "Time (Set exact hour & minute)",
-    value=time(12, 0),
-    step=timedelta(minutes=1)
-)
+time = st.time_input("Time")
 
 if st.button("Add Reminder"):
-    if task.strip() == "":
-        st.error("Please enter a valid reminder title.")
+    if task:
+        new_row = {"Task": task, "Date": date, "Time": time}
+        reminders = pd.concat([reminders, pd.DataFrame([new_row])], ignore_index=True)
+        reminders.to_csv(FILE_PATH, index=False)
+        st.success(f"✅ Reminder added for **{task}** on {date} at {time}.")
     else:
-        new_row = pd.DataFrame([[task, date, time_input]], columns=expected_cols)
-        reminders = pd.concat([reminders, new_row], ignore_index=True)
-        reminders.to_csv(csv_file, index=False)
-        st.success(f"✅ Reminder added: {task} on {date} at {time_input}")
+        st.error("⚠️ Please enter a task before adding a reminder.")
 
-# ---------- Display reminders ----------
-st.subheader("📅 Your Reminders")
-if not reminders.empty:
-    st.dataframe(reminders)
-else:
+# ---------- Display All Reminders ----------
+st.subheader("📋 All Reminders")
+
+if reminders.empty:
     st.info("No reminders added yet.")
+else:
+    st.dataframe(reminders)
 
-# ---------- Check reminders ----------
+# ---------- Check Reminder Status ----------
 st.subheader("⏰ Reminder Status")
 
 if not reminders.empty:
-    # Combine date and time safely
+    # Convert Date + Time columns into one datetime
     reminders["Datetime"] = pd.to_datetime(
         reminders["Date"].astype(str) + " " + reminders["Time"].astype(str),
         errors="coerce"
     )
 
-    current_time = datetime.now()
+    # FIX: use local timezone (Asia/Kolkata)
+    tz = pytz.timezone("Asia/Kolkata")
+    current_time = datetime.now(tz)
 
     for _, row in reminders.iterrows():
-        task = row["Task"]
-        reminder_time = row["Datetime"]
-
-        if pd.isna(reminder_time):
-            continue
-
-        if current_time >= reminder_time and current_time <= reminder_time + timedelta(minutes=1):
-            st.warning(f"🔔 **Reminder Due Now:** {task} — {row['Date']} {row['Time']}")
-        elif current_time < reminder_time:
-            time_left = reminder_time - current_time
-            hrs, mins = divmod(time_left.seconds // 60, 60)
-            st.info(f"🕒 **{task}** is due in {hrs}h {mins}m.")
-        else:
-            st.success(f"✅ **{task}** was completed or past due.")
-
-else:
-    st.caption("Add a few reminders to get started!")
-
-st.caption("💾 All reminders are auto-saved to reminders.csv in your working directory.")
+        task = r

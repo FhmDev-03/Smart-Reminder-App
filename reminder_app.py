@@ -1,56 +1,64 @@
 import streamlit as st
 import pandas as pd
-import datetime
+from datetime import datetime, timedelta
+import time
+import base64
 
-st.set_page_config(page_title="Smart Reminder App ⏰", layout="centered")
-st.title("🕓 Smart Reminder App")
+# ---------- Helper: Play alert sound ----------
+def play_sound():
+    # Simple beep sound using HTML audio tag
+    sound_html = """
+    <audio autoplay>
+        <source src="data:audio/mp3;base64,SUQzAwAAAAAAQ1RTU0... (short beep sound base64)" type="audio/mp3">
+    </audio>
+    """
+    st.markdown(sound_html, unsafe_allow_html=True)
 
-# Load or create reminder data
+# ---------- Title ----------
+st.title("🔔 Simple Reminder App")
+st.write("Keep track of birthdays, assignments, and important dates!")
+
+# ---------- Load / Create CSV ----------
+csv_file = "reminders.csv"
+
 try:
-    reminders = pd.read_csv("reminders.csv")
+    reminders = pd.read_csv(csv_file)
 except FileNotFoundError:
-    reminders = pd.DataFrame(columns=["Event","Date","Time","Advance_Minutes"])
+    reminders = pd.DataFrame(columns=["Task", "Date", "Time"])
 
-# Form to add reminders
-with st.form("reminder_form"):
-    event = st.text_input("Event")
-    date = st.date_input("Date")
-    time_input = st.time_input("Time", value=datetime.time(9, 0))
-    advance = st.number_input("Remind me (minutes before)", 0, 1440, 0)
-    submitted = st.form_submit_button("Add Reminder")
+# ---------- Add new reminder ----------
+st.subheader("Add a New Reminder")
+task = st.text_input("Reminder Title / Description")
+date = st.date_input("Date")
+time_input = st.time_input("Time")
 
-if submitted:
-    new_entry = {
-        "Event": event,
-        "Date": date.strftime("%Y-%m-%d"),
-        "Time": time_input.strftime("%H:%M"),
-        "Advance_Minutes": advance
-    }
-    reminders = pd.concat([reminders, pd.DataFrame([new_entry])], ignore_index=True)
-    reminders.to_csv("reminders.csv", index=False)
-    st.success("✅ Reminder added successfully!")
+if st.button("➕ Add Reminder"):
+    new_row = pd.DataFrame([[task, date, time_input]], columns=["Task", "Date", "Time"])
+    reminders = pd.concat([reminders, new_row], ignore_index=True)
+    reminders.to_csv(csv_file, index=False)
+    st.success(f"Reminder added: {task} on {date} at {time_input}")
 
-st.subheader("📋 All Reminders")
-st.dataframe(reminders)
+# ---------- Display reminders ----------
+st.subheader("📅 Your Reminders")
+if not reminders.empty:
+    st.dataframe(reminders)
+else:
+    st.info("No reminders added yet.")
 
-# Combine date + time + advance minutes
-reminders["Datetime"] = pd.to_datetime(reminders["Date"] + " " + reminders["Time"])
-reminders["Notify_At"] = reminders["Datetime"] - pd.to_timedelta(reminders["Advance_Minutes"], unit="m")
+# ---------- Check for alerts ----------
+st.subheader("⏰ Check Upcoming Reminders")
+current_time = datetime.now()
+reminders["Datetime"] = pd.to_datetime(reminders["Date"] + " " + reminders["Time"].astype(str))
 
-now = datetime.datetime.now()
-due = reminders[reminders["Notify_At"] <= now]
+for _, row in reminders.iterrows():
+    reminder_time = row["Datetime"]
+    if current_time >= reminder_time and current_time <= reminder_time + timedelta(minutes=1):
+        st.warning(f"🔔 Reminder Due: **{row['Task']}** — {row['Date']} {row['Time']}")
+        play_sound()
+    elif current_time < reminder_time:
+        time_left = reminder_time - current_time
+        st.info(f"🕒 {row['Task']} is due in {time_left.seconds//60} minutes.")
+    else:
+        st.success(f"✅ {row['Task']} was completed or past due.")
 
-# Show reminders due for alert
-if not due.empty:
-    for _, row in due.iterrows():
-        st.warning(f"🚨 **{row['Event']}** is due!  \n⏰ Scheduled for: {row['Datetime']}")
-        st.toast(f"Reminder: {row['Event']} is due now!", icon="⏰")
-        # ✅ Browser pop-up (works on Streamlit Cloud)
-        st.markdown(f"""
-        <script>
-        alert("⏰ Reminder: {row['Event']} is due!");
-        </script>
-        """, unsafe_allow_html=True)
-
-# Auto-refresh every 60 seconds
-st.markdown('<meta http-equiv="refresh" content="60">', unsafe_allow_html=True)
+st.caption("Reminders auto-save to `reminders.csv` in your working directory.")

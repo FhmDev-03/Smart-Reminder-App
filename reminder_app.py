@@ -3,15 +3,15 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pytz
 
-# ---------- Initialize App ----------
+# ---------- App Setup ----------
 st.set_page_config(page_title="🕰️ Smart Reminder App", layout="centered")
-
 st.title("🕰️ Smart Reminder App")
-st.write("Set reminders, track tasks, and get notified in your local time zone!")
+st.write("Set reminders with precise hour and minute — no 15-min limit!")
 
-# ---------- File Persistence ----------
+# ---------- Data File ----------
 FILE_PATH = "reminders.csv"
 
+# Load or create reminders file
 try:
     reminders = pd.read_csv(FILE_PATH)
 except FileNotFoundError:
@@ -20,20 +20,20 @@ except FileNotFoundError:
 # ---------- Add New Reminder ----------
 st.subheader("➕ Add a New Reminder")
 
-task = st.text_input("Task")
-date = st.date_input("Date")
-time = st.time_input("Time")
+task = st.text_input("Task name")
+date = st.date_input("Select date")
+time = st.time_input("Select exact time (hours:minutes)")
 
 if st.button("Add Reminder"):
-    if task:
-        new_row = {"Task": task, "Date": date, "Time": time}
+    if task.strip() == "":
+        st.error("⚠️ Please enter a task name before adding.")
+    else:
+        new_row = {"Task": task, "Date": str(date), "Time": str(time)}
         reminders = pd.concat([reminders, pd.DataFrame([new_row])], ignore_index=True)
         reminders.to_csv(FILE_PATH, index=False)
-        st.success(f"✅ Reminder added for **{task}** on {date} at {time}.")
-    else:
-        st.error("⚠️ Please enter a task before adding a reminder.")
+        st.success(f"✅ Added reminder for **{task}** at {date} {time}")
 
-# ---------- Display All Reminders ----------
+# ---------- Display Reminders ----------
 st.subheader("📋 All Reminders")
 
 if reminders.empty:
@@ -41,19 +41,44 @@ if reminders.empty:
 else:
     st.dataframe(reminders)
 
-# ---------- Check Reminder Status ----------
+# ---------- Reminder Status ----------
 st.subheader("⏰ Reminder Status")
 
 if not reminders.empty:
-    # Convert Date + Time columns into one datetime
+    tz = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(tz)
+
+    # Combine date & time into one datetime column
     reminders["Datetime"] = pd.to_datetime(
         reminders["Date"].astype(str) + " " + reminders["Time"].astype(str),
         errors="coerce"
     )
 
-    # FIX: use local timezone (Asia/Kolkata)
-    tz = pytz.timezone("Asia/Kolkata")
-    current_time = datetime.now(tz)
+    for idx, row in reminders.iterrows():
+        task_name = row["Task"]
+        reminder_time = row["Datetime"]
 
-    for _, row in reminders.iterrows():
-        task = r
+        # Skip invalid times
+        if pd.isna(reminder_time):
+            continue
+
+        # Make sure it’s timezone-aware
+        if reminder_time.tzinfo is None:
+            reminder_time = tz.localize(reminder_time)
+
+        # Compare with current time
+        if now >= reminder_time and now <= reminder_time + timedelta(minutes=1):
+            st.warning(f"🔔 **Reminder Due Now:** {task_name}")
+        elif now < reminder_time:
+            diff = reminder_time - now
+            hrs, rem = divmod(int(diff.total_seconds()), 3600)
+            mins = rem // 60
+            st.info(f"🕒 **{task_name}** is due in {hrs}h {mins}m.")
+        else:
+            st.success(f"✅ **{task_name}** was due earlier.")
+
+# ---------- Clear All ----------
+if st.button("🗑️ Clear All Reminders"):
+    reminders = pd.DataFrame(columns=["Task", "Date", "Time"])
+    reminders.to_csv(FILE_PATH, index=False)
+    st.success("🧹 All reminders cleared.")
